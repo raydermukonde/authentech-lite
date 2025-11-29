@@ -64,7 +64,7 @@ class SignupView extends GetView<AuthController> {
               
               // Post Name Dropdown
               Obx(() => DropdownButtonFormField<String>(
-                    value: controller.selectedPostName.value,
+                    initialValue: controller.selectedPostName.value,
                     decoration: const InputDecoration(
                       labelText: 'Post Name',
                     ),

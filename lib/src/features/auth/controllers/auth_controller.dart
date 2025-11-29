@@ -7,18 +7,27 @@ import '../../home/views/scanner_view.dart';
 
 class AuthController extends GetxController {
   final FirebaseAuth _auth = FirebaseAuth.instance;
-  final GoogleSignIn _googleSignIn = GoogleSignIn();
-  final Rx<User?> firebaseUser = Rx<User?>(null);
-  
+
+  // ✔ Correction : constructeur valide pour google_sign_in 7.2.0
+  final GoogleSignIn _googleSignIn = GoogleSignIn.standard();
+
+  final firebaseUser = Rx<User?>(null);
+
+  // Form controllers
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
   final nameController = TextEditingController();
   final addressController = TextEditingController();
-  final postNameController = TextEditingController(); // For Dropdown value
-  
-  // Dropdown values
-  final List<String> postNameOptions = ["Director", "Manager", "Employee", "Intern"];
-  final RxString selectedPostName = "Employee".obs;
+  final postNameController = TextEditingController();
+
+  // Dropdown
+  final List<String> postNameOptions = [
+    "Director",
+    "Manager",
+    "Employee",
+    "Intern"
+  ];
+  final selectedPostName = "Employee".obs;
 
   final isLoading = false.obs;
 
@@ -27,6 +36,16 @@ class AuthController extends GetxController {
     super.onReady();
     firebaseUser.bindStream(_auth.authStateChanges());
     ever(firebaseUser, _setInitialScreen);
+  }
+
+  @override
+  void onClose() {
+    emailController.dispose();
+    passwordController.dispose();
+    nameController.dispose();
+    addressController.dispose();
+    postNameController.dispose();
+    super.onClose();
   }
 
   void _setInitialScreen(User? user) {
@@ -45,74 +64,73 @@ class AuthController extends GetxController {
         password: passwordController.text.trim(),
       );
     } on FirebaseAuthException catch (e) {
-      Get.snackbar(
-        "Error",
-        e.message ?? "Login failed",
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.red.withAlpha(25),
-        colorText: Colors.red,
-      );
+      _showError(e.message ?? "Login failed");
     } finally {
       isLoading.value = false;
     }
   }
+
+  // ---------------- GOOGLE LOGIN ----------------
 
   Future<void> signInWithGoogle() async {
     try {
       isLoading.value = true;
+
       final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
       if (googleUser == null) {
         isLoading.value = false;
-        return; // User canceled
+        return; // cancel
       }
 
-      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
-      final AuthCredential credential = GoogleAuthProvider.credential(
-        accessToken: googleAuth.accessToken,
+      final GoogleSignInAuthentication googleAuth =
+          await googleUser.authentication;
+
+      final credential = GoogleAuthProvider.credential(
         idToken: googleAuth.idToken,
+        accessToken: googleAuth.accessToken,
       );
 
       await _auth.signInWithCredential(credential);
     } catch (e) {
-      Get.snackbar(
-        "Error",
-        "Google Sign-In failed: $e",
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.red.withAlpha(25),
-        colorText: Colors.red,
-      );
+      _showError("Google Sign-In failed: $e");
     } finally {
       isLoading.value = false;
     }
   }
 
+  // ---------------- REGISTER ----------------
+
   Future<void> signUp() async {
     try {
       isLoading.value = true;
-      UserCredential cred = await _auth.createUserWithEmailAndPassword(
+
+      final cred = await _auth.createUserWithEmailAndPassword(
         email: emailController.text.trim(),
         password: passwordController.text.trim(),
       );
-      
+
       await cred.user?.updateDisplayName(nameController.text.trim());
-      // Here you would typically save extra user data (address, postName, etc) to Firestore
-      // e.g., await FirebaseFirestore.instance.collection('users').doc(cred.user!.uid).set({...});
-      
     } on FirebaseAuthException catch (e) {
-      Get.snackbar(
-        "Error",
-        e.message ?? "Registration failed",
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.red.withAlpha(25),
-        colorText: Colors.red,
-      );
+      _showError(e.message ?? "Registration failed");
     } finally {
       isLoading.value = false;
     }
   }
 
   Future<void> signOut() async {
-    await _googleSignIn.signOut();
+    try {
+      await _googleSignIn.signOut();
+    } catch (_) {}
     await _auth.signOut();
+  }
+
+  void _showError(String message) {
+    Get.snackbar(
+      "Error",
+      message,
+      snackPosition: SnackPosition.BOTTOM,
+      backgroundColor: Colors.red.withOpacity(0.15),
+      colorText: Colors.red,
+    );
   }
 }
